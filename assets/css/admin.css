@@ -70,3 +70,24 @@
 .md-importer-table td a.button-link-delete:hover {
     color: #a02622;
 }
+
+.md-importer-pending-table th,
+.md-importer-pending-table td {
+    padding: 10px 8px;
+}
+
+.md-importer-pending-table input[type="text"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccd0d4;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+.md-importer-actions {
+    margin-top: 18px;
+}
+
+.md-importer-actions .button {
+    margin-right: 8px;
+}

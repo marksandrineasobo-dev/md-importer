@@ -147,41 +147,20 @@ if ( ! class_exists( 'MD_Importer' ) ) {
         }
 
         private function render_upload_tab() {
-            $recent_uploads = $this->get_recent_uploads();
-
-            if ( ! empty( $recent_uploads ) ) {
-                echo '<div class="md-importer-table-wrap">';
-                echo '<div class="md-importer-table-toolbar">';
-                echo '<label for="md-importer-table-search">' . esc_html__( 'Search', 'md-importer' ) . ':</label> ';
-                echo '<input id="md-importer-table-search" class="md-importer-table-search" type="search" placeholder="' . esc_attr__( 'Search uploaded files...', 'md-importer' ) . '" />';
-                echo '</div>';
-                echo '<table class="wp-list-table widefat fixed striped md-importer-table">';
-                echo '<thead><tr><th>' . esc_html__( 'ID', 'md-importer' ) . '</th><th>' . esc_html__( 'Keyword', 'md-importer' ) . '</th><th>' . esc_html__( 'URL Slug', 'md-importer' ) . '</th><th>' . esc_html__( 'Action', 'md-importer' ) . '</th></tr></thead>';
-                echo '<tbody>';
-                foreach ( $recent_uploads as $upload ) {
-                    echo '<tr>';
-                    echo '<td>' . esc_html( $upload['id'] ) . '</td>';
-                    echo '<td>' . esc_html( $upload['keyword'] ) . '</td>';
-                    echo '<td>' . esc_html( $upload['slug'] ) . '</td>';
-                    echo '<td>' . wp_kses_post( $upload['action'] ) . '</td>';
-                    echo '</tr>';
-                }
-                echo '</tbody>';
-                echo '</table>';
-                echo '<p><a class="button" href="' . esc_url( add_query_arg( array( 'tab' => 'upload', 'clear_recent_uploads' => '1' ), admin_url( 'admin.php?page=' . self::SLUG ) ) ) . '">' . esc_html__( 'Upload more files', 'md-importer' ) . '</a></p>';
-                echo '</div>';
-
-                return;
-            }
-
-            echo '<p>' . esc_html__( 'Upload one or more Markdown files (.md or .markdown) to create draft posts.', 'md-importer' ) . '</p>';
-            echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" enctype="multipart/form-data">';
+            echo '<p>' . esc_html__( 'Upload one or more Markdown files (.md or .markdown), review metadata, and confirm before posting.', 'md-importer' ) . '</p>';
+            echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" enctype="multipart/form-data" id="md-importer-upload-form">';
             echo '<input type="hidden" name="action" value="md_importer_upload">';
             wp_nonce_field( 'md_importer_upload_action', 'md_importer_upload_nonce' );
             echo '<div id="md-importer-dropzone" class="md-importer-dropzone" tabindex="0">' . esc_html__( 'Drop Markdown files here or click to select them.', 'md-importer' ) . '</div>';
             echo '<div id="md-importer-file-list" class="md-importer-file-list" aria-live="polite"></div>';
-            echo '<input name="md_import_file[]" type="file" id="md_import_file" accept=".md,.markdown,text/markdown" multiple required style="display:none;" />';
-            submit_button( __( 'Import Markdown Files', 'md-importer' ) );
+            echo '<div id="md-importer-pending-uploads" class="md-importer-pending-uploads"></div>';
+            echo '<div id="md-importer-hidden-fields"></div>';
+            echo '<div class="md-importer-actions">';
+            echo '<button type="submit" id="md-importer-confirm" class="button button-primary" disabled>' . esc_html__( 'Confirm', 'md-importer' ) . '</button>';
+            echo ' ';
+            echo '<button type="button" id="md-importer-cancel" class="button" disabled>' . esc_html__( 'Cancel', 'md-importer' ) . '</button>';
+            echo '</div>';
+            echo '<input name="md_import_file[]" type="file" id="md_import_file" accept=".md,.markdown,text/markdown" multiple style="display:none;" />';
             echo '</form>';
         }
 
@@ -205,8 +184,47 @@ if ( ! class_exists( 'MD_Importer' ) ) {
         }
 
         private function render_article_overview_tab() {
-            echo '<p>' . esc_html__( 'Article Overview will show imported post summaries and status.', 'md-importer' ) . '</p>';
-            echo '<p>' . esc_html__( 'This area can later display a list of imported articles, their draft status, and metadata.', 'md-importer' ) . '</p>';
+            $entries = $this->get_article_overview_entries();
+
+            if ( empty( $entries ) ) {
+                echo '<p>' . esc_html__( 'No confirmed uploads available yet. After confirming files in the Upload tab, they will appear here.', 'md-importer' ) . '</p>';
+                return;
+            }
+
+            echo '<div class="md-importer-table-wrap">';
+            echo '<div class="md-importer-table-toolbar">';
+            echo '<label for="md-importer-table-search">' . esc_html__( 'Search', 'md-importer' ) . ':</label> ';
+            echo '<input id="md-importer-table-search" class="md-importer-table-search" type="search" placeholder="' . esc_attr__( 'Search confirmed articles...', 'md-importer' ) . '" />';
+            echo '</div>';
+            echo '<table class="wp-list-table widefat fixed striped md-importer-table">';
+            echo '<thead><tr><th>' . esc_html__( 'ID', 'md-importer' ) . '</th><th>' . esc_html__( 'Keyword', 'md-importer' ) . '</th><th>' . esc_html__( 'URL Slug', 'md-importer' ) . '</th><th>' . esc_html__( 'RELEASE_DATE', 'md-importer' ) . '</th><th>' . esc_html__( 'Action', 'md-importer' ) . '</th></tr></thead>';
+            echo '<tbody>';
+            foreach ( $entries as $entry ) {
+                echo '<tr>';
+                echo '<td>' . esc_html( $entry['id'] ) . '</td>';
+                echo '<td>' . esc_html( $entry['keyword'] ) . '</td>';
+                echo '<td>' . esc_html( $entry['slug'] ) . '</td>';
+                echo '<td>' . esc_html( $entry['release_date'] ) . '</td>';
+                echo '<td>' . wp_kses_post( $entry['action'] ) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody>';
+            echo '</table>';
+            echo '</div>';
+        }
+
+        private function get_article_overview_entries() {
+            $user_id = get_current_user_id();
+            if ( ! $user_id ) {
+                return array();
+            }
+
+            $entries = get_transient( 'md_importer_article_overview_' . $user_id );
+            if ( ! is_array( $entries ) ) {
+                return array();
+            }
+
+            return $entries;
         }
 
         private function render_cta_buttons_tab() {
@@ -235,12 +253,20 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 $this->redirect_with_error( __( 'No valid files were uploaded.', 'md-importer' ) );
             }
 
+            $release_dates = isset( $_POST['release_date'] ) && is_array( $_POST['release_date'] ) ? $_POST['release_date'] : array();
+            $url_slugs      = isset( $_POST['url_slug'] ) && is_array( $_POST['url_slug'] ) ? $_POST['url_slug'] : array();
+            $keywords       = isset( $_POST['keyword'] ) && is_array( $_POST['keyword'] ) ? $_POST['keyword'] : array();
+
             $success_count = 0;
             $error_count   = 0;
             $error_messages = array();
             $recent_uploads = array();
+            $article_overview = get_transient( 'md_importer_article_overview_' . get_current_user_id() );
+            if ( ! is_array( $article_overview ) ) {
+                $article_overview = array();
+            }
 
-            foreach ( $files as $file ) {
+            foreach ( $files as $index => $file ) {
                 if ( ! isset( $file['tmp_name'] ) || empty( $file['tmp_name'] ) ) {
                     $error_count++;
                     $error_messages[] = sprintf( __( 'File %s could not be uploaded.', 'md-importer' ), esc_html( $file['name'] ) );
@@ -272,7 +298,31 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     continue;
                 }
 
-                $post_title   = $this->get_title_from_markdown( $content );
+                $lines = preg_split( '/\r?\n/', trim( $content ) );
+
+                // Extract RELEASE_DATE from line 1
+                $release_date = '';
+                if ( isset( $lines[0] ) && preg_match( '/\[\[([^\]]+)\]\]/', $lines[0], $matches ) ) {
+                    $release_date = $matches[1];
+                }
+
+                // Extract URL-slug from line 5
+                $url_slug = '';
+                if ( isset( $lines[4] ) ) {
+                    $url_slug = trim( $lines[4] );
+                }
+
+                // Extract Keyword from line 7
+                $keyword = '';
+                if ( isset( $lines[6] ) && strpos( $lines[6], '# ' ) === 0 ) {
+                    $keyword = trim( substr( $lines[6], 2 ) );
+                }
+
+                $release_date = isset( $release_dates[ $index ] ) ? sanitize_text_field( wp_unslash( $release_dates[ $index ] ) ) : $release_date;
+                $url_slug      = isset( $url_slugs[ $index ] ) ? sanitize_text_field( wp_unslash( $url_slugs[ $index ] ) ) : $url_slug;
+                $keyword       = isset( $keywords[ $index ] ) ? sanitize_text_field( wp_unslash( $keywords[ $index ] ) ) : $keyword;
+
+                $post_title   = $keyword ?: $this->get_title_from_markdown( $content );
                 $post_content = $this->convert_markdown_to_html( $content );
 
                 $post_id = wp_insert_post( array(
@@ -280,6 +330,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     'post_content' => $post_content,
                     'post_status'  => 'draft',
                     'post_type'    => 'post',
+                    'post_name'    => $url_slug ? sanitize_title( $url_slug ) : sanitize_title( $post_title ),
                 ) );
 
                 if ( is_wp_error( $post_id ) || ! $post_id ) {
@@ -287,6 +338,11 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     $error_messages[] = sprintf( __( 'Could not create a post for %s.', 'md-importer' ), esc_html( $file['name'] ) );
                     continue;
                 }
+
+                update_post_meta( $post_id, '_md_importer_release_date', $release_date );
+                update_post_meta( $post_id, '_md_importer_url_slug', $url_slug );
+                update_post_meta( $post_id, '_md_importer_keyword', $keyword );
+                update_post_meta( $post_id, '_md_importer_imported', time() );
 
                 $success_count++;
                 $delete_url = add_query_arg( array(
@@ -296,10 +352,11 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 ), admin_url( 'admin-post.php' ) );
 
                 $recent_uploads[] = array(
-                    'id'      => $post_id,
-                    'keyword' => $file['name'],
-                    'slug'    => get_post_field( 'post_name', $post_id ),
-                    'action'  => sprintf(
+                    'id'           => $post_id,
+                    'keyword'      => $keyword ?: $file['name'],
+                    'slug'         => $url_slug ?: get_post_field( 'post_name', $post_id ),
+                    'release_date' => $release_date,
+                    'action'       => sprintf(
                         '<a href="%s" target="_blank" class="button button-small">%s</a> <a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'%s\');">%s</a>',
                         esc_url( get_edit_post_link( $post_id ) ),
                         esc_html__( 'Edit', 'md-importer' ),
@@ -308,16 +365,26 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                         esc_html__( 'Delete', 'md-importer' )
                     ),
                 );
+
+                $article_overview[] = array(
+                    'id'           => $post_id,
+                    'keyword'      => $keyword ?: $file['name'],
+                    'slug'         => $url_slug ?: get_post_field( 'post_name', $post_id ),
+                    'release_date' => $release_date,
+                    'action'       => $recent_uploads[ $success_count - 1 ]['action'],
+                );
             }
 
             if ( $success_count > 0 ) {
                 set_transient( 'md_importer_recent_upload_' . get_current_user_id(), $recent_uploads, HOUR_IN_SECONDS );
+                set_transient( 'md_importer_article_overview_' . get_current_user_id(), $article_overview, HOUR_IN_SECONDS );
             }
 
             $redirect_url = add_query_arg( array(
                 'md_importer_status' => 'success',
                 'success_count'      => $success_count,
                 'error_count'        => $error_count,
+                'tab'                => 'article-overview',
             ), admin_url( 'admin.php?page=' . self::SLUG ) );
 
             if ( $error_count > 0 ) {
@@ -365,6 +432,19 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     set_transient( 'md_importer_recent_upload_' . $user_id, $recent_uploads, HOUR_IN_SECONDS );
                 } else {
                     delete_transient( 'md_importer_recent_upload_' . $user_id );
+                }
+            }
+
+            $article_overview = get_transient( 'md_importer_article_overview_' . $user_id );
+            if ( is_array( $article_overview ) ) {
+                $article_overview = array_filter( $article_overview, function( $entry ) use ( $post_id ) {
+                    return (int) $entry['id'] !== $post_id;
+                } );
+
+                if ( ! empty( $article_overview ) ) {
+                    set_transient( 'md_importer_article_overview_' . $user_id, $article_overview, HOUR_IN_SECONDS );
+                } else {
+                    delete_transient( 'md_importer_article_overview_' . $user_id );
                 }
             }
 
