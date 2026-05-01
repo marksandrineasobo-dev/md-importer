@@ -24,6 +24,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
         public function __construct() {
             add_action( 'admin_menu', array( $this, 'register_admin_page' ) );
             add_action( 'admin_post_md_importer_upload', array( $this, 'handle_upload' ) );
+            add_action( 'admin_post_md_importer_delete', array( $this, 'handle_delete' ) );
             add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
         }
 
@@ -82,6 +83,10 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 } elseif ( 'error' === $status && isset( $_GET['message'] ) ) {
                     $message = '<div class="notice notice-error is-dismissible"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['message'] ) ) ) . '</p></div>';
                 }
+            }
+
+            if ( isset( $_GET['md_importer_deleted'] ) ) {
+                $message .= '<div class="notice notice-info is-dismissible"><p>' . esc_html__( 'Post deleted successfully.', 'md-importer' ) . '</p></div>';
             }
 
             $current_tab = $this->get_current_tab();
@@ -284,14 +289,23 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 }
 
                 $success_count++;
+                $delete_url = add_query_arg( array(
+                    'action'                    => 'md_importer_delete',
+                    'post_id'                   => $post_id,
+                    'md_importer_delete_nonce' => wp_create_nonce( 'md_importer_delete_' . $post_id ),
+                ), admin_url( 'admin-post.php' ) );
+
                 $recent_uploads[] = array(
                     'id'      => $post_id,
                     'keyword' => $file['name'],
                     'slug'    => get_post_field( 'post_name', $post_id ),
                     'action'  => sprintf(
-                        '<a href="%s" target="_blank">%s</a>',
+                        '<a href="%s" target="_blank" class="button button-small">%s</a> <a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'%s\');">%s</a>',
                         esc_url( get_edit_post_link( $post_id ) ),
-                        esc_html__( 'Edit', 'md-importer' )
+                        esc_html__( 'Edit', 'md-importer' ),
+                        esc_url( $delete_url ),
+                        esc_js( __( 'Are you sure you want to delete this post?', 'md-importer' ) ),
+                        esc_html__( 'Delete', 'md-importer' )
                     ),
                 );
             }
@@ -311,6 +325,50 @@ if ( ! class_exists( 'MD_Importer' ) ) {
             }
 
             wp_safe_redirect( $redirect_url );
+            exit;
+        }
+
+        public function handle_delete() {
+            if ( ! current_user_can( 'manage_options' ) ) {
+                wp_die( esc_html__( 'You do not have sufficient permissions to delete posts.', 'md-importer' ) );
+            }
+
+            if ( ! isset( $_GET['post_id'] ) || ! isset( $_GET['md_importer_delete_nonce'] ) ) {
+                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG ) );
+                exit;
+            }
+
+            $post_id = absint( $_GET['post_id'] );
+            $nonce   = sanitize_text_field( wp_unslash( $_GET['md_importer_delete_nonce'] ) );
+
+            if ( ! wp_verify_nonce( $nonce, 'md_importer_delete_' . $post_id ) ) {
+                wp_die( esc_html__( 'Security check failed.', 'md-importer' ) );
+            }
+
+            $post = get_post( $post_id );
+            if ( ! $post || $post->post_type !== 'post' ) {
+                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG ) );
+                exit;
+            }
+
+            wp_delete_post( $post_id, true );
+
+            $user_id = get_current_user_id();
+            $recent_uploads = get_transient( 'md_importer_recent_upload_' . $user_id );
+
+            if ( is_array( $recent_uploads ) ) {
+                $recent_uploads = array_filter( $recent_uploads, function( $upload ) use ( $post_id ) {
+                    return (int) $upload['id'] !== $post_id;
+                } );
+
+                if ( ! empty( $recent_uploads ) ) {
+                    set_transient( 'md_importer_recent_upload_' . $user_id, $recent_uploads, HOUR_IN_SECONDS );
+                } else {
+                    delete_transient( 'md_importer_recent_upload_' . $user_id );
+                }
+            }
+
+            wp_safe_redirect( add_query_arg( 'md_importer_deleted', '1', admin_url( 'admin.php?page=' . self::SLUG ) ) );
             exit;
         }
 

@@ -58,3 +58,15 @@
 .md-importer-table td a {
     color: #0073aa;
 }
+
+.md-importer-table td a.button {
+    margin-right: 6px;
+}
+
+.md-importer-table td a.button-link-delete {
+    color: #d63638;
+}
+
+.md-importer-table td a.button-link-delete:hover {
+    color: #a02622;
+}
