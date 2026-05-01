@@ -1,0 +1,27 @@
+.md-importer-dropzone {
+    border: 2px dashed #ccc;
+    padding: 25px;
+    text-align: center;
+    cursor: pointer;
+    background: #fff;
+    transition: border-color .15s, background-color .15s;
+    color: #333;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.md-importer-dropzone.md-importer-dropzone-active {
+    border-color: #0073aa;
+    background: #f1f7ff;
+}
+
+.md-importer-file-list {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #555;
+}
+
+.md-importer-file-list strong {
+    display: block;
+    margin-bottom: 6px;
+}

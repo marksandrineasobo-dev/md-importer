@@ -24,6 +24,28 @@ if ( ! class_exists( 'MD_Importer' ) ) {
         public function __construct() {
             add_action( 'admin_menu', array( $this, 'register_admin_page' ) );
             add_action( 'admin_post_md_importer_upload', array( $this, 'handle_upload' ) );
+            add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+        }
+
+        public function enqueue_admin_assets( $hook_suffix ) {
+            if ( 'toplevel_page_' . self::SLUG !== $hook_suffix ) {
+                return;
+            }
+
+            wp_enqueue_style(
+                self::SLUG . '-admin',
+                plugin_dir_url( __FILE__ ) . 'assets/css/admin.css',
+                array(),
+                self::VERSION
+            );
+
+            wp_enqueue_script(
+                self::SLUG . '-admin',
+                plugin_dir_url( __FILE__ ) . 'assets/js/admin.js',
+                array(),
+                self::VERSION,
+                true
+            );
         }
 
         public function register_admin_page() {
@@ -125,9 +147,8 @@ if ( ! class_exists( 'MD_Importer' ) ) {
             echo '<input type="hidden" name="action" value="md_importer_upload">';
             wp_nonce_field( 'md_importer_upload_action', 'md_importer_upload_nonce' );
             echo '<div id="md-importer-dropzone" class="md-importer-dropzone" tabindex="0">' . esc_html__( 'Drop Markdown files here or click to select them.', 'md-importer' ) . '</div>';
-            echo '<input name="md_import_file[]" type="file" id="md_import_file" accept=".md,.markdown,text/markdown" multiple required style="display:none;" />';
-            echo '<style>.md-importer-dropzone{border:2px dashed #ccc;padding:25px;text-align:center;cursor:pointer;background:#fff;transition:border-color .15s,background-color .15s;color:#333;}.md-importer-dropzone.md-importer-dropzone-active{border-color:#0073aa;background:#f1f7ff;}</style>';
-            echo '<script>(function(){var drop=document.getElementById("md-importer-dropzone"),input=document.getElementById("md_import_file");if(!drop||!input)return;drop.addEventListener("click",function(){input.click();});drop.addEventListener("dragover",function(e){e.preventDefault();drop.classList.add("md-importer-dropzone-active");});drop.addEventListener("dragleave",function(){drop.classList.remove("md-importer-dropzone-active");});drop.addEventListener("drop",function(e){e.preventDefault();drop.classList.remove("md-importer-dropzone-active");var files=e.dataTransfer.files; if(files.length){input.files=files;drop.textContent=files.length+" file(s) selected";}});input.addEventListener("change",function(){if(input.files.length){drop.textContent=input.files.length+" file(s) selected";}else{drop.textContent="' . esc_js( __( 'Drop Markdown files here or click to select them.', 'md-importer' ) ) . '";}});})();</script>';
+            echo '<div id="md-importer-file-list" class="md-importer-file-list" aria-live="polite"></div>';
+            echo '<input name="md_import_file[]" type="file" id="md_import_file" accept=".md,.markdown,text/markdown image/*" multiple required style="display:none;" />';
             submit_button( __( 'Import Markdown Files', 'md-importer' ) );
             echo '</form>';
         }
