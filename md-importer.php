@@ -47,7 +47,16 @@ if ( ! class_exists( 'MD_Importer' ) ) {
             if ( isset( $_GET['md_importer_status'] ) ) {
                 $status = sanitize_text_field( wp_unslash( $_GET['md_importer_status'] ) );
                 if ( 'success' === $status ) {
-                    $message = '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Markdown file imported successfully.', 'md-importer' ) . '</p></div>';
+                    $success_count = isset( $_GET['success_count'] ) ? absint( $_GET['success_count'] ) : 0;
+                    $error_count   = isset( $_GET['error_count'] ) ? absint( $_GET['error_count'] ) : 0;
+
+                    if ( $success_count > 0 ) {
+                        $message = '<div class="notice notice-success is-dismissible"><p>' . esc_html( sprintf( _n( '%d file imported successfully.', '%d files imported successfully.', $success_count, 'md-importer' ), $success_count ) ) . '</p></div>';
+                    }
+
+                    if ( $error_count > 0 && isset( $_GET['message'] ) ) {
+                        $message .= '<div class="notice notice-warning is-dismissible"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['message'] ) ) ) . '</p></div>';
+                    }
                 } elseif ( 'error' === $status && isset( $_GET['message'] ) ) {
                     $message = '<div class="notice notice-error is-dismissible"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['message'] ) ) ) . '</p></div>';
                 }
@@ -111,14 +120,15 @@ if ( ! class_exists( 'MD_Importer' ) ) {
         }
 
         private function render_upload_tab() {
-            echo '<p>' . esc_html__( 'Upload a Markdown file (.md or .markdown) to create a draft post.', 'md-importer' ) . '</p>';
+            echo '<p>' . esc_html__( 'Upload one or more Markdown files (.md or .markdown) to create draft posts.', 'md-importer' ) . '</p>';
             echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" enctype="multipart/form-data">';
             echo '<input type="hidden" name="action" value="md_importer_upload">';
             wp_nonce_field( 'md_importer_upload_action', 'md_importer_upload_nonce' );
-            echo '<table class="form-table"><tbody>';
-            echo '<tr><th scope="row"><label for="md_import_file">' . esc_html__( 'Markdown file', 'md-importer' ) . '</label></th><td><input name="md_import_file" type="file" id="md_import_file" accept=".md,.markdown,text/markdown" required /></td></tr>';
-            echo '</tbody></table>';
-            submit_button( __( 'Import Markdown', 'md-importer' ) );
+            echo '<div id="md-importer-dropzone" class="md-importer-dropzone" tabindex="0">' . esc_html__( 'Drop Markdown files here or click to select them.', 'md-importer' ) . '</div>';
+            echo '<input name="md_import_file[]" type="file" id="md_import_file" accept=".md,.markdown,text/markdown" multiple required style="display:none;" />';
+            echo '<style>.md-importer-dropzone{border:2px dashed #ccc;padding:25px;text-align:center;cursor:pointer;background:#fff;transition:border-color .15s,background-color .15s;color:#333;}.md-importer-dropzone.md-importer-dropzone-active{border-color:#0073aa;background:#f1f7ff;}</style>';
+            echo '<script>(function(){var drop=document.getElementById("md-importer-dropzone"),input=document.getElementById("md_import_file");if(!drop||!input)return;drop.addEventListener("click",function(){input.click();});drop.addEventListener("dragover",function(e){e.preventDefault();drop.classList.add("md-importer-dropzone-active");});drop.addEventListener("dragleave",function(){drop.classList.remove("md-importer-dropzone-active");});drop.addEventListener("drop",function(e){e.preventDefault();drop.classList.remove("md-importer-dropzone-active");var files=e.dataTransfer.files; if(files.length){input.files=files;drop.textContent=files.length+" file(s) selected";}});input.addEventListener("change",function(){if(input.files.length){drop.textContent=input.files.length+" file(s) selected";}else{drop.textContent="' . esc_js( __( 'Drop Markdown files here or click to select them.', 'md-importer' ) ) . '";}});})();</script>';
+            submit_button( __( 'Import Markdown Files', 'md-importer' ) );
             echo '</form>';
         }
 
@@ -144,41 +154,97 @@ if ( ! class_exists( 'MD_Importer' ) ) {
 
             check_admin_referer( 'md_importer_upload_action', 'md_importer_upload_nonce' );
 
-            if ( empty( $_FILES['md_import_file'] ) || ! isset( $_FILES['md_import_file']['tmp_name'] ) ) {
+            if ( empty( $_FILES['md_import_file'] ) ) {
                 $this->redirect_with_error( __( 'No file uploaded.', 'md-importer' ) );
             }
 
-            $file = $_FILES['md_import_file'];
-            if ( $file['error'] !== UPLOAD_ERR_OK ) {
-                $this->redirect_with_error( __( 'Upload failed. Please try again.', 'md-importer' ) );
+            $files = $this->normalize_files_array( $_FILES['md_import_file'] );
+            if ( empty( $files ) ) {
+                $this->redirect_with_error( __( 'No valid files were uploaded.', 'md-importer' ) );
             }
 
-            $mime_type = wp_check_filetype( $file['name'] );
-            if ( ! in_array( $mime_type['ext'], array( 'md', 'markdown', 'txt' ), true ) ) {
-                $this->redirect_with_error( __( 'Only Markdown files (.md, .markdown) are allowed.', 'md-importer' ) );
+            $success_count = 0;
+            $error_count   = 0;
+            $error_messages = array();
+
+            foreach ( $files as $file ) {
+                if ( ! isset( $file['tmp_name'] ) || empty( $file['tmp_name'] ) ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'File %s could not be uploaded.', 'md-importer' ), esc_html( $file['name'] ) );
+                    continue;
+                }
+
+                if ( $file['error'] !== UPLOAD_ERR_OK ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'Error uploading %s.', 'md-importer' ), esc_html( $file['name'] ) );
+                    continue;
+                }
+
+                $mime_type = wp_check_filetype( $file['name'] );
+                if ( ! in_array( $mime_type['ext'], array( 'md', 'markdown', 'txt' ), true ) ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( '%s is not a Markdown file.', 'md-importer' ), esc_html( $file['name'] ) );
+                    continue;
+                }
+
+                $content = file_get_contents( $file['tmp_name'] );
+                if ( false === $content ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'Unable to read %s.', 'md-importer' ), esc_html( $file['name'] ) );
+                    continue;
+                }
+
+                $post_title   = $this->get_title_from_markdown( $content );
+                $post_content = $this->convert_markdown_to_html( $content );
+
+                $post_id = wp_insert_post( array(
+                    'post_title'   => $post_title,
+                    'post_content' => $post_content,
+                    'post_status'  => 'draft',
+                    'post_type'    => 'post',
+                ) );
+
+                if ( is_wp_error( $post_id ) || ! $post_id ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'Could not create a post for %s.', 'md-importer' ), esc_html( $file['name'] ) );
+                    continue;
+                }
+
+                $success_count++;
             }
 
-            $content = file_get_contents( $file['tmp_name'] );
-            if ( false === $content ) {
-                $this->redirect_with_error( __( 'Unable to read the uploaded file.', 'md-importer' ) );
+            $redirect_url = add_query_arg( array(
+                'md_importer_status' => 'success',
+                'success_count'      => $success_count,
+                'error_count'        => $error_count,
+            ), admin_url( 'admin.php?page=' . self::SLUG ) );
+
+            if ( $error_count > 0 ) {
+                $redirect_url = add_query_arg( 'message', rawurlencode( implode( ' ', array_slice( $error_messages, 0, 3 ) ) ), $redirect_url );
             }
 
-            $post_title   = $this->get_title_from_markdown( $content );
-            $post_content = $this->convert_markdown_to_html( $content );
-
-            $post_id = wp_insert_post( array(
-                'post_title'   => $post_title,
-                'post_content' => $post_content,
-                'post_status'  => 'draft',
-                'post_type'    => 'post',
-            ) );
-
-            if ( is_wp_error( $post_id ) || ! $post_id ) {
-                $this->redirect_with_error( __( 'Could not create the post.', 'md-importer' ) );
-            }
-
-            wp_safe_redirect( add_query_arg( 'md_importer_status', 'success', admin_url( 'admin.php?page=' . self::SLUG ) ) );
+            wp_safe_redirect( $redirect_url );
             exit;
+        }
+
+        private function normalize_files_array( $files ) {
+            $normalized = array();
+
+            if ( is_array( $files['name'] ) ) {
+                foreach ( $files['name'] as $index => $name ) {
+                    $normalized[] = array(
+                        'name'     => $name,
+                        'type'     => $files['type'][ $index ],
+                        'tmp_name' => $files['tmp_name'][ $index ],
+                        'error'    => $files['error'][ $index ],
+                        'size'     => $files['size'][ $index ],
+                    );
+                }
+            } else {
+                $normalized[] = $files;
+            }
+
+            return $normalized;
         }
 
         private function redirect_with_error( $message ) {
