@@ -52,4 +52,19 @@
     input.addEventListener( 'change', function() {
         updateFileList( input.files );
     } );
+
+    var tableSearch = document.getElementById( 'md-importer-table-search' );
+    var table = document.querySelector( '.md-importer-table' );
+
+    if ( tableSearch && table ) {
+        tableSearch.addEventListener( 'input', function() {
+            var filter = tableSearch.value.toLowerCase();
+            var rows = table.querySelectorAll( 'tbody tr' );
+
+            Array.prototype.forEach.call( rows, function( row ) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf( filter ) !== -1 ? '' : 'none';
+            } );
+        } );
+    }
 } )();

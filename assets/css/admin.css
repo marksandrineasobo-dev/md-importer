@@ -25,3 +25,36 @@
     display: block;
     margin-bottom: 6px;
 }
+
+.md-importer-table-wrap {
+    margin-top: 24px;
+}
+
+.md-importer-table-toolbar {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.md-importer-table-toolbar label {
+    font-weight: 600;
+}
+
+.md-importer-table-search {
+    max-width: 320px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccd0d4;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.md-importer-table th,
+.md-importer-table td {
+    padding: 12px 10px;
+}
+
+.md-importer-table td a {
+    color: #0073aa;
+}
