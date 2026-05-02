@@ -28,7 +28,6 @@
         fileList.innerHTML = '';
         pendingUploads.innerHTML = '';
         hiddenFields.innerHTML = '';
-        input.value = '';
         confirmButton.disabled = true;
         cancelButton.disabled = true;
         drop.textContent = 'Drop Markdown files here or click to select them.';
@@ -159,8 +158,11 @@
         drop.classList.remove( 'md-importer-dropzone-active' );
 
         if ( event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length ) {
-            handleFiles( event.dataTransfer.files );
-        }
+            handleFiles( event.dataTransfer.files );            try {
+                input.files = event.dataTransfer.files;
+            } catch ( e ) {
+                // Ignore if not supported
+            }        }
     } );
 
     input.addEventListener( 'change', function() {
