@@ -46,15 +46,15 @@
         var rows = pendingFiles.map( function( item, index ) {
             return '<tr>' +
                 '<td>' + ( index + 1 ) + '</td>' +
-                '<td>' + escapeHtml( item.name ) + '</td>' +
+                '<td>' + escapeHtml( item.keyword ) + '</td>' +
                 '<td><input type="text" class="md-importer-input" data-index="' + index + '" data-field="release_date" value="' + escapeHtml( item.release_date ) + '" /></td>' +
                 '<td><input type="text" class="md-importer-input" data-index="' + index + '" data-field="url_slug" value="' + escapeHtml( item.url_slug ) + '" /></td>' +
-                '<td><input type="text" class="md-importer-input" data-index="' + index + '" data-field="keyword" value="' + escapeHtml( item.keyword ) + '" /></td>' +
+                '<td><button type="button" class="button button-small button-link-delete md-importer-delete-row" data-index="' + index + '">Delete</button></td>' +
                 '</tr>';
         } ).join( '' );
 
         pendingUploads.innerHTML = '<table class="wp-list-table widefat fixed striped md-importer-table md-importer-pending-table">' +
-            '<thead><tr><th>#</th><th>File name</th><th>RELEASE_DATE</th><th>URL Slug</th><th>Keyword</th></tr></thead>' +
+            '<thead><tr><th>#</th><th>Keyword</th><th>RELEASE_DATE</th><th>URL Slug</th><th>Actions</th></tr></thead>' +
             '<tbody>' + rows + '</tbody>' +
             '</table>';
 
@@ -82,9 +82,7 @@
                 url_slug = lines[4].trim();
             }
 
-            if ( lines[6] && lines[6].indexOf( '# ' ) === 0 ) {
-                keyword = lines[6].substr( 2 ).trim();
-            }
+            keyword = file.name.replace( /\.[^/.]+$/, '' );
 
             pendingFiles.push({
                 file: file,
@@ -178,6 +176,17 @@
             var field = target.getAttribute( 'data-field' );
             if ( pendingFiles[ index ] ) {
                 pendingFiles[ index ][ field ] = target.value;
+            }
+        }
+    } );
+
+    pendingUploads.addEventListener( 'click', function( event ) {
+        var target = event.target;
+        if ( target.classList.contains( 'md-importer-delete-row' ) ) {
+            var index = parseInt( target.getAttribute( 'data-index' ), 10 );
+            if ( pendingFiles[ index ] ) {
+                pendingFiles.splice( index, 1 );
+                renderPendingFiles();
             }
         }
     } );
