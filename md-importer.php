@@ -266,6 +266,18 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 $article_overview = array();
             }
 
+            // Extract existing keywords and slugs from article overview
+            $existing_keywords = array();
+            $existing_slugs = array();
+            foreach ( $article_overview as $entry ) {
+                if ( isset( $entry['keyword'] ) ) {
+                    $existing_keywords[] = $entry['keyword'];
+                }
+                if ( isset( $entry['slug'] ) ) {
+                    $existing_slugs[] = $entry['slug'];
+                }
+            }
+
             foreach ( $files as $index => $file ) {
                 if ( ! isset( $file['tmp_name'] ) || empty( $file['tmp_name'] ) ) {
                     $error_count++;
@@ -312,17 +324,30 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     $url_slug = trim( $lines[4] );
                 }
 
-                // Extract Keyword from line 7
-                $keyword = '';
-                if ( isset( $lines[6] ) && strpos( $lines[6], '# ' ) === 0 ) {
-                    $keyword = trim( substr( $lines[6], 2 ) );
-                }
+                // Keyword is the filename without extension
+                $keyword = preg_replace( '/\.[^.]+$/', '', $file['name'] );
 
                 $release_date = isset( $release_dates[ $index ] ) ? sanitize_text_field( wp_unslash( $release_dates[ $index ] ) ) : $release_date;
                 $url_slug      = isset( $url_slugs[ $index ] ) ? sanitize_text_field( wp_unslash( $url_slugs[ $index ] ) ) : $url_slug;
                 $keyword       = isset( $keywords[ $index ] ) ? sanitize_text_field( wp_unslash( $keywords[ $index ] ) ) : $keyword;
 
+                // Check if keyword already exists in article overview
+                if ( in_array( $keyword, $existing_keywords, true ) ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'File %s skipped: keyword "%s" already exists in Article Overview.', 'md-importer' ), esc_html( $file['name'] ), esc_html( $keyword ) );
+                    continue;
+                }
+
                 $post_title   = $keyword ?: $this->get_title_from_markdown( $content );
+
+                // Sanitize URL slug and check if already exists
+                $sanitized_slug = $url_slug ? sanitize_title( $url_slug ) : sanitize_title( $post_title );
+                if ( in_array( $sanitized_slug, $existing_slugs, true ) ) {
+                    $error_count++;
+                    $error_messages[] = sprintf( __( 'File %s skipped: URL slug "%s" already exists in Article Overview.', 'md-importer' ), esc_html( $file['name'] ), esc_html( $sanitized_slug ) );
+                    continue;
+                }
+
                 $post_content = $this->convert_markdown_to_html( $content );
 
                 $post_id = wp_insert_post( array(
@@ -330,7 +355,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                     'post_content' => $post_content,
                     'post_status'  => 'draft',
                     'post_type'    => 'post',
-                    'post_name'    => $url_slug ? sanitize_title( $url_slug ) : sanitize_title( $post_title ),
+                    'post_name'    => $sanitized_slug ?: sanitize_title( $post_title ),
                 ) );
 
                 if ( is_wp_error( $post_id ) || ! $post_id ) {
@@ -354,7 +379,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 $recent_uploads[] = array(
                     'id'           => $post_id,
                     'keyword'      => $keyword ?: $file['name'],
-                    'slug'         => $url_slug ?: get_post_field( 'post_name', $post_id ),
+                    'slug'         => $sanitized_slug,
                     'release_date' => $release_date,
                     'action'       => sprintf(
                         '<a href="%s" target="_blank" class="button button-small">%s</a> <a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'%s\');">%s</a>',
@@ -369,7 +394,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 $article_overview[] = array(
                     'id'           => $post_id,
                     'keyword'      => $keyword ?: $file['name'],
-                    'slug'         => $url_slug ?: get_post_field( 'post_name', $post_id ),
+                    'slug'         => $sanitized_slug,
                     'release_date' => $release_date,
                     'action'       => $recent_uploads[ $success_count - 1 ]['action'],
                 );
@@ -401,7 +426,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
             }
 
             if ( ! isset( $_GET['post_id'] ) || ! isset( $_GET['md_importer_delete_nonce'] ) ) {
-                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG ) );
+                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG . '&tab=article-overview' ) );
                 exit;
             }
 
@@ -414,7 +439,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
 
             $post = get_post( $post_id );
             if ( ! $post || $post->post_type !== 'post' ) {
-                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG ) );
+                wp_safe_redirect( admin_url( 'admin.php?page=' . self::SLUG . '&tab=article-overview' ) );
                 exit;
             }
 
@@ -448,7 +473,7 @@ if ( ! class_exists( 'MD_Importer' ) ) {
                 }
             }
 
-            wp_safe_redirect( add_query_arg( 'md_importer_deleted', '1', admin_url( 'admin.php?page=' . self::SLUG ) ) );
+            wp_safe_redirect( add_query_arg( 'md_importer_deleted', '1', admin_url( 'admin.php?page=' . self::SLUG . '&tab=article-overview' ) ) );
             exit;
         }
 
