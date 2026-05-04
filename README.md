@@ -1,4 +1,4 @@
-# Markdown Importer ( *** )
+# Markdown Importer ( $$$ )
 
 A lightweight WordPress plugin scaffold for importing Markdown files into draft posts.
 
